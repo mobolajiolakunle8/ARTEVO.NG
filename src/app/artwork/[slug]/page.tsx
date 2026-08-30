@@ -1,13 +1,9 @@
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import ArtworkDetailClient from "./ArtworkDetailClient";
-import { db } from "@/db";
-import { artworks, collections } from "@/db/schema";
-import { ensureDatabaseSeeded } from "@/db/init";
-import { eq, or } from "drizzle-orm";
+import { queryArtwork, queryCollection, queryArtworks } from "@/db/queries";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { fallbackArtworks, fallbackCollections } from "@/lib/fallback-data";
 
 export const revalidate = 0;
 
@@ -19,18 +15,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  let artwork: any = fallbackArtworks.find((item) => item.slug === slug || item.refCode === slug);
-
-  try {
-    await ensureDatabaseSeeded();
-    const [dbArtwork] = await db
-      .select()
-      .from(artworks)
-      .where(or(eq(artworks.slug, slug), eq(artworks.refCode, slug)));
-    if (dbArtwork) artwork = dbArtwork;
-  } catch (error) {
-    console.error("[ARTÉVO] Artwork metadata fallback active:", error);
-  }
+  const artwork = await queryArtwork(slug);
 
   if (!artwork) return { title: "Artwork Not Found — ARTÉVO" };
 
@@ -63,33 +48,18 @@ export default async function ArtworkDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  let artwork: any = fallbackArtworks.find((item) => item.slug === slug || item.refCode === slug);
-  let coll: any = artwork ? fallbackCollections.find((item) => item.slug === artwork.collectionSlug) : null;
-  let related: any[] = artwork ? fallbackArtworks.filter((item) => item.collectionSlug === artwork.collectionSlug).slice(0, 4) : [];
 
-  try {
-    await ensureDatabaseSeeded();
-    const [dbArtwork] = await db
-      .select()
-      .from(artworks)
-      .where(or(eq(artworks.slug, slug), eq(artworks.refCode, slug)));
-
-    if (dbArtwork) {
-      artwork = dbArtwork;
-      const [dbCollection, dbRelated] = await Promise.all([
-        db.select().from(collections).where(eq(collections.slug, artwork.collectionSlug)),
-        db.select().from(artworks).where(eq(artworks.collectionSlug, artwork.collectionSlug)).limit(4),
-      ]);
-      coll = dbCollection[0] || coll;
-      related = dbRelated.length ? dbRelated : related;
-    }
-  } catch (error) {
-    console.error("[ARTÉVO] Artwork detail fallback active:", error);
-  }
+  const artwork = await queryArtwork(slug);
 
   if (!artwork) {
     notFound();
   }
+
+  const coll = await queryCollection(artwork.collectionSlug);
+
+  const related = (await queryArtworks())
+    .filter((r) => r.collectionSlug === artwork.collectionSlug)
+    .slice(0, 4);
 
   const jsonLd = {
     "@context": "https://schema.org",

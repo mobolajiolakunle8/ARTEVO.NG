@@ -3,33 +3,20 @@ import Footer from "@/components/Footer";
 import Logo from "@/components/Logo";
 import ArtworkCard from "@/components/ArtworkCard";
 import Link from "next/link";
-import { db } from "@/db";
-import { collections, artworks, journalArticles } from "@/db/schema";
-import { ensureDatabaseSeeded } from "@/db/init";
-import { eq } from "drizzle-orm";
-import { fallbackArticles, fallbackArtworks, fallbackCollections } from "@/lib/fallback-data";
+import { queryCollections, queryArtworks, queryPublishedArticles } from "@/db/queries";
 import { ArrowRight, ShieldCheck, Compass, Sparkles, Layers, Crown, Building2, Gavel, CheckCircle } from "lucide-react";
 
 export const revalidate = 0;
 
 export default async function HomePage() {
-  let allCollections: any[] = fallbackCollections;
-  let featuredArtworks: any[] = fallbackArtworks;
-  let articles: any[] = fallbackArticles;
-
-  try {
-    await ensureDatabaseSeeded();
-    const [dbCollections, dbArtworks, dbArticles] = await Promise.all([
-      db.select().from(collections).orderBy(collections.displayOrder).limit(8),
-      db.select().from(artworks).where(eq(artworks.featured, true)).limit(6),
-      db.select().from(journalArticles).where(eq(journalArticles.published, true)).limit(3),
-    ]);
-    if (dbCollections.length) allCollections = dbCollections;
-    if (dbArtworks.length) featuredArtworks = dbArtworks;
-    if (dbArticles.length) articles = dbArticles;
-  } catch (error) {
-    console.error("[ARTÉVO] Homepage database fallback active:", error);
-  }
+  const [allColls, allArts, allArticles] = await Promise.all([
+    queryCollections(),
+    queryArtworks(),
+    queryPublishedArticles(),
+  ]);
+  const allCollections = allColls.slice(0, 8);
+  const featuredArtworks = allArts.filter((a) => a.featured).slice(0, 6);
+  const articles = allArticles.slice(0, 3);
 
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#161616] flex flex-col font-sans">

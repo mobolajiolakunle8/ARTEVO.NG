@@ -23,13 +23,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body className="bg-[#FAF7F2] text-[#161616] antialiased" id="main-content">
-        <a
-          href="#main-content"
-          data-skip-link
-          className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:bg-[#A85C43] focus:text-[#FAF7F2] focus:px-4 focus:py-2 focus:rounded focus:text-xs focus:font-bold focus:shadow-lg focus:outline-none"
-        >
-          Skip to main content
-        </a>
         <Suspense fallback={null}>
           <AnalyticsTracker />
         </Suspense>

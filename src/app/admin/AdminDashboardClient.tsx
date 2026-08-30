@@ -5,6 +5,7 @@ import Link from "next/link";
 import Logo from "@/components/Logo";
 import ImageUploader from "@/components/ImageUploader";
 import { BRAND } from "@/lib/brand";
+import { syncBroadcast } from "@/lib/sync";
 import {
   LayoutDashboard,
   Palette,
@@ -40,6 +41,7 @@ import {
   RefreshCw,
   Info,
   Upload,
+  AlertTriangle,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -68,6 +70,7 @@ interface AdminDashboardClientProps {
   initialInquiries: any[];
   initialEvents: any[];
   initialSubscribers?: any[];
+  databaseReady?: boolean;
 }
 
 const fmt = (n: number) => `₦${(n || 0).toLocaleString()}`;
@@ -97,6 +100,7 @@ export default function AdminDashboardClient({
   initialInquiries,
   initialEvents,
   initialSubscribers = [],
+  databaseReady = true,
 }: AdminDashboardClientProps) {
   const [activeTab, setActiveTab] = useState("overview");
 
@@ -168,6 +172,7 @@ export default function AdminDashboardClient({
     setSiteEditorSaving(true);
     try {
       await fetch("/api/site-content", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(siteContentData) });
+      syncBroadcast("artevo-site-content", { ts: Date.now() });
       setSiteEditorSuccess(true);
       showToast("Website content updated and published.");
       setTimeout(() => setSiteEditorSuccess(false), 3500);
@@ -500,6 +505,19 @@ export default function AdminDashboardClient({
 
       {/* ---------- Main ---------- */}
       <div className="flex-1 min-w-0 w-full space-y-6">
+        {/* Database status banner */}
+        {!databaseReady && (
+          <div className="bg-amber-50 border border-amber-300 text-amber-900 rounded-lg p-4 flex items-start gap-3 text-xs">
+            <AlertTriangle className="w-5 h-5 shrink-0 text-amber-600" />
+            <div>
+              <strong className="block">PostgreSQL is not connected yet.</strong>
+              Add <code className="bg-amber-100 px-1 rounded font-mono">DATABASE_URL</code> in
+              Vercel → Settings → Environment Variables, then redeploy. The public catalog is
+              currently serving preview content; orders, bids and admin saves require the database.
+            </div>
+          </div>
+        )}
+
         {/* Top bar */}
         <div className="bg-[#FAF7F2] border border-[#161616]/15 rounded-lg p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
           <div>
@@ -1088,7 +1106,7 @@ export default function AdminDashboardClient({
                 {/* Section tabs */}
                 <div className="bg-[#FAF7F2] border border-[#161616]/15 rounded-lg p-4 shadow-sm">
                   <div className="flex flex-wrap gap-2">
-                    {["notification", "hero", "about_section", "contact_info", "brand", "journal_section", "spaces_section", "footer_note"].map((sec) => (
+                    {["announcement", "hero", "about_section", "contact_info", "brand", "journal_section", "spaces_section", "footer_note"].map((sec) => (
                       <button key={sec} onClick={() => setSiteEditorSection(sec)}
                         className={`px-3 py-1.5 rounded text-[11px] uppercase tracking-wider font-semibold transition-colors ${siteEditorSection === sec ? "bg-[#161616] text-[#FAF7F2]" : "bg-[#161616]/8 text-[#161616]/70 hover:bg-[#161616]/15"}`}>
                         {sec.replace(/_/g, " ")}

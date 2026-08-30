@@ -1,12 +1,21 @@
-import { db } from "@/db";
+import { db, isDatabaseConfigured } from "@/db";
 import { journalArticles } from "@/db/schema";
 import { ensureDatabaseSeeded } from "@/db/init";
 import { eq, desc, and } from "drizzle-orm";
+import { FALLBACK_ARTICLES } from "@/lib/catalog-fallback";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
-  await ensureDatabaseSeeded();
   const { searchParams } = new URL(request.url);
+
+  if (!isDatabaseConfigured()) {
+    const category = searchParams.get("category");
+    const filtered = FALLBACK_ARTICLES.filter((a) => {
+      if (category && category !== "all" && a.category !== category) return false;
+      return true;
+    });
+    return NextResponse.json({ articles: filtered });
+  }
   const category = searchParams.get("category");
   const collection = searchParams.get("collection");
   const publishedOnly = searchParams.get("publishedOnly");

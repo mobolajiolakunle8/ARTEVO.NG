@@ -1,10 +1,12 @@
-import { db } from "@/db";
+import { db, isDatabaseConfigured } from "@/db";
 import { analyticsEvents } from "@/db/schema";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
   try {
     const { eventType, path, artworkSlug, meta } = await request.json();
+
+    if (!isDatabaseConfigured()) return NextResponse.json({ ok: true });
 
     await db.insert(analyticsEvents).values({
       eventType: eventType || "page_view",

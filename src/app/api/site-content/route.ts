@@ -1,4 +1,4 @@
-import { db } from "@/db";
+import { db, isDatabaseConfigured } from "@/db";
 import { siteContent } from "@/db/schema";
 import { ensureDatabaseSeeded } from "@/db/init";
 import { eq, and } from "drizzle-orm";
@@ -6,15 +6,17 @@ import { NextResponse } from "next/server";
 
 // Default content — shown before admin saves anything
 export const DEFAULT_CONTENT: Record<string, Record<string, string>> = {
-  notification: {
-    message: "ARTÉVO Ibadan Studio is open for custom commissions, curated editions and private gifting — WhatsApp 0903 019 2034.",
-  },
   hero: {
     headline: "Art. Evolved.",
     sub: "We believe the art you live with should feel like a part of your story — not an afterthought.",
     cta_primary: "Explore the Collection",
     cta_secondary: "About ARTÉVO",
     badge: "Contemporary art, made meaningful",
+  },
+  announcement: {
+    enabled: "1",
+    ticker:
+      "New arrivals in the African Soul collection | Limited editions now open for acquisition | Bespoke commissions for homes, offices & hospitality | Order via bank transfer with full tracking",
   },
   about_section: {
     headline: "More than something beautiful to look at.",
@@ -67,6 +69,9 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
+  if (!isDatabaseConfigured()) {
+    return NextResponse.json({ error: "Database is not connected yet. Add DATABASE_URL in Vercel environment variables." }, { status: 503 });
+  }
   await ensureDatabaseSeeded();
   try {
     const body = await request.json() as Record<string, Record<string, string>>;

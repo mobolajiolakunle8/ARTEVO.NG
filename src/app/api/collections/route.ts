@@ -1,12 +1,19 @@
-import { db } from "@/db";
+import { db, isDatabaseConfigured } from "@/db";
 import { collections, artworks } from "@/db/schema";
 import { ensureDatabaseSeeded } from "@/db/init";
 import { eq, asc, count } from "drizzle-orm";
+import { FALLBACK_COLLECTIONS, FALLBACK_ARTWORKS } from "@/lib/catalog-fallback";
 import { NextResponse } from "next/server";
 
 export async function GET() {
-  await ensureDatabaseSeeded();
   try {
+    if (!isDatabaseConfigured()) {
+      const countsMap = new Map<string, number>();
+      for (const a of FALLBACK_ARTWORKS) countsMap.set(a.collectionSlug, (countsMap.get(a.collectionSlug) || 0) + 1);
+      return NextResponse.json({
+        collections: FALLBACK_COLLECTIONS.map((c) => ({ ...c, artworkCount: countsMap.get(c.slug) || 0 })),
+      });
+    }
     const list = await db.select().from(collections).orderBy(asc(collections.displayOrder));
     
     // Count artworks per collection

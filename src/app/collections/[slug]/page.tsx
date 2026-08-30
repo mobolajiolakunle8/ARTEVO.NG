@@ -2,13 +2,9 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import ArtworkCard from "@/components/ArtworkCard";
 import Link from "next/link";
-import { db } from "@/db";
-import { collections, artworks } from "@/db/schema";
-import { ensureDatabaseSeeded } from "@/db/init";
-import { eq } from "drizzle-orm";
+import { queryCollection, queryArtworks } from "@/db/queries";
 import { notFound } from "next/navigation";
-import { fallbackArtworks, fallbackCollections } from "@/lib/fallback-data";
-import { ArrowLeft, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, Filter, SlidersHorizontal } from "lucide-react";
 
 export const revalidate = 0;
 
@@ -18,24 +14,14 @@ export default async function CollectionDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  let coll: any = fallbackCollections.find((item) => item.slug === slug);
-  let items: any[] = fallbackArtworks.filter((item) => item.collectionSlug === slug);
 
-  try {
-    await ensureDatabaseSeeded();
-    const [dbCollection] = await db.select().from(collections).where(eq(collections.slug, slug));
-    if (dbCollection) {
-      coll = dbCollection;
-      const dbItems = await db.select().from(artworks).where(eq(artworks.collectionSlug, slug));
-      items = dbItems.length ? dbItems : items;
-    }
-  } catch (error) {
-    console.error("[ARTÉVO] Collection detail fallback active:", error);
-  }
+  const coll = await queryCollection(slug);
 
   if (!coll) {
     notFound();
   }
+
+  const items = (await queryArtworks()).filter((a) => a.collectionSlug === slug);
 
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#161616] flex flex-col font-sans">

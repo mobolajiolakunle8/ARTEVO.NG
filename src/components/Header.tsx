@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Logo from "./Logo";
-import NotificationBar from "./NotificationBar";
+import AnnouncementBar from "./AnnouncementBar";
 import { Search, Menu, X, ArrowRight, Heart } from "lucide-react";
 import { useWishlist } from "./useWishlist";
 
@@ -53,7 +53,8 @@ export default function Header() {
 
   return (
     <>
-      <NotificationBar />
+      {/* Scrolling announcement ticker — editable in Admin Studio → Website Editor */}
+      <AnnouncementBar />
 
       {/* Main Header */}
       <header className="sticky top-0 z-40 bg-[#FAF7F2]/95 backdrop-blur-md border-b border-[#161616]/10 transition-all">

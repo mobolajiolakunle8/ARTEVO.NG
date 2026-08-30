@@ -1,12 +1,31 @@
-import { db } from "@/db";
+import { db, isDatabaseConfigured } from "@/db";
 import { artworks, collections } from "@/db/schema";
 import { ensureDatabaseSeeded } from "@/db/init";
 import { eq, desc, and, ilike, sql } from "drizzle-orm";
+import { FALLBACK_ARTWORKS } from "@/lib/catalog-fallback";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
-  await ensureDatabaseSeeded();
   const { searchParams } = new URL(request.url);
+
+  if (!isDatabaseConfigured()) {
+    const fallback = FALLBACK_ARTWORKS;
+    const search = searchParams.get("search");
+    const collection = searchParams.get("collection");
+    const filtered = fallback.filter((a) => {
+      if (collection && collection !== "all" && a.collectionSlug !== collection) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        return (
+          a.title.toLowerCase().includes(q) ||
+          a.artist.toLowerCase().includes(q) ||
+          a.refCode.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+    return NextResponse.json({ artworks: filtered });
+  }
   const collection = searchParams.get("collection");
   const orientation = searchParams.get("orientation");
   const search = searchParams.get("search");

@@ -1,12 +1,8 @@
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import PaymentClient from "./PaymentClient";
-import { db } from "@/db";
-import { orders, paymentSettings } from "@/db/schema";
-import { ensureDatabaseSeeded } from "@/db/init";
-import { eq } from "drizzle-orm";
+import { queryOrderByRef, queryBankSettings } from "@/db/queries";
 import { notFound } from "next/navigation";
-import { fallbackBankSettings } from "@/lib/fallback-data";
 
 export const revalidate = 0;
 
@@ -21,22 +17,13 @@ export default async function PaymentPage({
     notFound();
   }
 
-  let order: any = null;
-  let bankSettings: any = fallbackBankSettings;
-
-  try {
-    await ensureDatabaseSeeded();
-    const [foundOrder] = await db.select().from(orders).where(eq(orders.orderRef, orderRef));
-    order = foundOrder || null;
-    const [foundBankSettings] = await db.select().from(paymentSettings).limit(1);
-    bankSettings = foundBankSettings || fallbackBankSettings;
-  } catch (error) {
-    console.error("[ARTÉVO] Payment lookup unavailable:", error);
-  }
+  const order = await queryOrderByRef(orderRef);
 
   if (!order) {
     notFound();
   }
+
+  const bankSettings = await queryBankSettings();
 
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#161616] flex flex-col font-sans">

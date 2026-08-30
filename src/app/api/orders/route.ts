@@ -1,4 +1,4 @@
-import { db } from "@/db";
+import { db, isDatabaseConfigured } from "@/db";
 import { orders, analyticsEvents } from "@/db/schema";
 import { ensureDatabaseSeeded } from "@/db/init";
 import { desc, eq, ilike, or } from "drizzle-orm";
@@ -40,6 +40,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  if (!isDatabaseConfigured()) {
+    return NextResponse.json({ error: "Database is not connected yet. Add DATABASE_URL in Vercel environment variables." }, { status: 503 });
+  }
   await ensureDatabaseSeeded();
   try {
     const body = await request.json();

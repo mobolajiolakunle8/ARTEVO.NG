@@ -38,23 +38,6 @@
   }
 }
 
-/* Editable notification marquee */
-.notification-marquee {
-  display: inline-flex;
-  min-width: max-content;
-  gap: 4rem;
-  animation: artevo-marquee 28s linear infinite;
-}
-.notification-marquee span { padding-left: 2rem; }
-@keyframes artevo-marquee {
-  from { transform: translateX(0); }
-  to { transform: translateX(-33.333%); }
-}
-.reduce-motion .notification-marquee { animation: none; transform: none; }
-@media (prefers-reduced-motion: reduce) {
-  .notification-marquee { animation: none; transform: none; }
-}
-
 /* Watermark Overlay for Artwork Previews */
 .artevo-watermark {
   position: relative;
@@ -92,4 +75,28 @@
 ::-webkit-scrollbar-thumb {
   background: #B5965A;
   border-radius: 3px;
+}
+
+/* ─── Announcement ticker marquee ─────────────────────────────── */
+.artevo-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: arta-marquee 36s linear infinite;
+}
+
+.artevo-marquee-item {
+  padding-right: 0;
+}
+
+@keyframes arta-marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .artevo-marquee-track {
+    animation: none;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
 }

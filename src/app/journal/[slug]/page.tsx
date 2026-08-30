@@ -1,13 +1,9 @@
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import Link from "next/link";
-import { db } from "@/db";
-import { journalArticles, collections, artworks } from "@/db/schema";
-import { ensureDatabaseSeeded } from "@/db/init";
-import { eq } from "drizzle-orm";
+import { queryArticle, queryCollection, queryArtworks, queryPublishedArticles } from "@/db/queries";
 import { notFound } from "next/navigation";
-import { fallbackArticles, fallbackArtworks, fallbackCollections } from "@/lib/fallback-data";
-import { ArrowLeft, Clock, User } from "lucide-react";
+import { ArrowLeft, Clock, User, Share2, Layers } from "lucide-react";
 
 export const revalidate = 0;
 
@@ -17,29 +13,24 @@ export default async function JournalDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  let article: any = fallbackArticles.find((item) => item.slug === slug);
-  let linkedColl: any = article?.collectionSlug ? fallbackCollections.find((item) => item.slug === article.collectionSlug) : null;
-  let linkedArtworks: any[] = article?.collectionSlug ? fallbackArtworks.filter((item) => item.collectionSlug === article.collectionSlug).slice(0, 3) : [];
 
-  try {
-    await ensureDatabaseSeeded();
-    const [dbArticle] = await db.select().from(journalArticles).where(eq(journalArticles.slug, slug));
-    if (dbArticle) {
-      article = dbArticle;
-      if (article.collectionSlug) {
-        const [foundColl] = await db.select().from(collections).where(eq(collections.slug, article.collectionSlug));
-        linkedColl = foundColl || linkedColl;
-        const dbLinked = await db.select().from(artworks).where(eq(artworks.collectionSlug, article.collectionSlug)).limit(3);
-        linkedArtworks = dbLinked.length ? dbLinked : linkedArtworks;
-      }
-    }
-  } catch (error) {
-    console.error("[ARTÉVO] Journal detail fallback active:", error);
-  }
+  const article = await queryArticle(slug);
 
   if (!article) {
     notFound();
   }
+
+  // Linked collection if exists
+  let linkedColl = null;
+  let linkedArtworks: any[] = [];
+  if (article.collectionSlug) {
+    linkedColl = await queryCollection(article.collectionSlug);
+    linkedArtworks = (await queryArtworks())
+      .filter((a) => a.collectionSlug === article.collectionSlug)
+      .slice(0, 3);
+  }
+
+  const related = (await queryPublishedArticles()).slice(0, 3);
 
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#161616] flex flex-col font-sans">

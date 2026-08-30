@@ -1,29 +1,13 @@
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import Link from "next/link";
-import { db } from "@/db";
-import { journalArticles } from "@/db/schema";
-import { ensureDatabaseSeeded } from "@/db/init";
-import { eq, desc } from "drizzle-orm";
-import { fallbackArticles } from "@/lib/fallback-data";
-import { ArrowRight, Clock } from "lucide-react";
+import { queryPublishedArticles } from "@/db/queries";
+import { ArrowRight, BookOpen, Clock } from "lucide-react";
 
 export const revalidate = 0;
 
 export default async function JournalIndexPage() {
-  let articles: any[] = fallbackArticles;
-
-  try {
-    await ensureDatabaseSeeded();
-    const dbArticles = await db
-      .select()
-      .from(journalArticles)
-      .where(eq(journalArticles.published, true))
-      .orderBy(desc(journalArticles.createdAt));
-    if (dbArticles.length) articles = dbArticles;
-  } catch (error) {
-    console.error("[ARTÉVO] Journal fallback active:", error);
-  }
+  const articles = await queryPublishedArticles();
 
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#161616] flex flex-col font-sans">

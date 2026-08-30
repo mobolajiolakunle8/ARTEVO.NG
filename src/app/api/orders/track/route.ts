@@ -1,11 +1,16 @@
-import { db } from "@/db";
+import { db, isDatabaseConfigured } from "@/db";
 import { orders } from "@/db/schema";
 import { ensureDatabaseSeeded } from "@/db/init";
 import { eq, and, ilike } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
-  await ensureDatabaseSeeded();
+  if (!isDatabaseConfigured()) {
+    return NextResponse.json(
+      { error: "Order tracking is unavailable until the database is connected." },
+      { status: 503 }
+    );
+  }
   try {
     const { orderRef, email } = await request.json();
 

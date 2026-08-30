@@ -18,21 +18,6 @@ Next.js’s internal optional `sharp` dependency. It is **explicitly denied**
 through `allowScripts.sharp: false`, is not used by ARTÉVO, and will not run.
 Do not add `dangerously-allow-all-scripts` or globally approve scripts.
 
-## If Vercel says Ready but the website preview says “This page couldn’t load”
-
-That means the build completed, but a runtime request crashed. The most common
-cause is a missing, local-only, or unreachable `DATABASE_URL`. This codebase now
-handles that professionally:
-
-- Public pages render fallback ARTÉVO catalog content instead of crashing.
-- `/admin` opens with a safe dashboard shell and fallback sample data.
-- `/api/health` returns a live status message even before the database is connected.
-- Once a valid managed PostgreSQL URL is added, the app creates its tables and syncs live data automatically.
-
-Also remove any accidental uploaded screenshots from `public/uploads/` before
-pushing. The repository keeps only `public/uploads/.gitkeep`; live uploads are
-stored by the app flow, not committed screenshots.
-
 ---
 
 ## Required Vercel settings
@@ -43,9 +28,22 @@ In **Vercel → Project → Settings → General**:
 | --- | --- |
 | Framework Preset | `Next.js` |
 | Root Directory | The folder that contains this project’s `package.json` |
-| Node.js Version | `22.x` — pinned to avoid automatic future major Node upgrades |
+| Node.js Version | `22.x` — pinned in `package.json` `engines` and `.nvmrc` |
 | Build Command | Leave unset — Vercel automatically runs `npm run build` |
 | Install Command | Leave unset — Vercel automatically runs `npm install` |
+
+### Node version pin (why this matters)
+`package.json` declares `"engines": { "node": "22.x" }`. A **major-version
+pin** (not `>=20.19.0`) means Vercel always runs builds on Node 22 LTS and will
+never silently jump to Node 23+ when it is released. This prevents the Vercel
+warning:
+
+> Detected "engines": { "node": ">=20.19.0" } … will automatically upgrade when
+> a new major Node.js Version is released.
+
+If you ever need to move majors, change both `package.json` engines and
+`.nvmrc` together on a single commit, for example `"node": "24.x"` plus
+`.nvmrc` containing `24`.
 
 The final `vercel.json` is deliberately minimal:
 
@@ -55,11 +53,6 @@ The final `vercel.json` is deliberately minimal:
 
 Do not add `memory`, `build.env`, `outputDirectory`, a custom `installCommand`,
 or legacy `@secret-name` references.
-
-The project intentionally uses `"engines": { "node": "22.x" }` instead of an
-open-ended range like `>=20.19.0`. This prevents Vercel from automatically
-moving the deployment to a future Node major version before the app is tested
-against it.
 
 ---
 
@@ -118,34 +111,9 @@ The compressed upload guardrail is 5 MB.
 
 ---
 
-## GitHub upload checklist
-
-If GitHub shows **“Something went wrong, and we can’t process that file”**, the problem is usually one of these:
-
-- Dragging generated folders like `.next/` or `node_modules/` into GitHub.
-- Uploading private/local files like `.env`.
-- Uploading runtime artwork/screenshot files from `public/uploads/`.
-- Uploading too many nested files through the GitHub web uploader at once.
-
-This project has been reduced and cleaned for GitHub/Vercel. The deployable source set is kept **under 80 files** when generated/private files are excluded.
-
-### Do not upload these
-
-```text
-node_modules/
-.next/
-.vercel/
-.env
-next-env.d.ts
-tsconfig.tsbuildinfo
-public/uploads/*   except public/uploads/.gitkeep
-```
-
-Use Git commit/push whenever possible instead of GitHub drag-and-drop. If using the web uploader, upload the project folder contents in small groups and confirm the files above are not selected.
-
 ## Deploy checklist
 
-1. Commit and push **all** updated source files, especially:
+1. Commit and push **all** updated files, especially:
    - `next.config.ts`
    - `vercel.json`
    - `package.json` and `package-lock.json`
@@ -172,3 +140,101 @@ Ibadan, Oyo State, Nigeria · Established 2026
 Email: mobolajiolakunle8@gmail.com  
 WhatsApp: 0903 019 2034  
 Currency: Nigerian Naira (₦ / NGN)
+
+## Announcement ticker (above header)
+
+The thin bar above the header now shows **only** a scrolling announcement
+ticker (all other items were removed) and is fully admin-editable:
+
+1. Open **Admin Studio → Website Editor → announcement**.
+2. `ticker` — messages separated by `|`; they scroll in a seamless loop.
+3. `enabled` — `1` shows the ticker, `0` hides it.
+4. Save & Publish — updates instantly in every open tab (cross-tab sync).
+
+No code changes are needed to change announcements on the live site.
+
+## Resilience without a database
+
+Every public page and catalog API (home, collections, artwork, journal,
+auctions, spaces) falls back to embedded ARTÉVO content when `DATABASE_URL`
+is missing or unreachable, so Vercel never shows "This page could not load".
+
+- Write operations (orders, bids, inquiries, newsletter, admin saves) return
+  a clear 503 message until the database is connected.
+- `/api/health` reports `{ "ok": true, "database": false }` instead of failing
+  the deployment check when Postgres is not yet configured.
+- `/admin` shows an amber banner explaining that the database is required for
+  live orders and saves.
+
+## Step-by-step for the "This page could not load" case
+
+1. Push ALL files from this repository (use `git add -A` + `git commit` +
+   `git push` — do not use GitHub's "Add files via upload" for nested
+   directories such as `src/app/api/...` or `public/logo/`).
+2. Vercel → Settings → General → **Node.js Version: 22.x** (matches
+   `package.json` engines and `.nvmrc`).
+3. Vercel → Settings → Environment Variables → add `DATABASE_URL` with your
+   hosted Postgres URL (Neon/Supabase/Vercel/SUPABASE/RAILWAY).
+4. Redeploy (optionally without cache). The public website is now fully live
+   even before the database is connected — the catalog serves preview content.
+5. Connect the database and verify `/admin` writes, orders, and bids.
+
+---
+
+# Git upload troubleshooting ("Something went really wrong, and we can't process that file")
+
+## What caused it
+GitHub's **web "Add files via upload"** UI cannot reliably handle this project:
+
+1. It drops or corrupts files inside **deep nested paths**
+   (`src/app/api/...`, `src/components/...`, `public/logo/...`).
+2. It fails on **multi-file folder uploads** past GitHub's size limits
+   (~25 files / 100 MB per interactive upload).
+3. Files saved via this UI end up **partially committed**, producing the
+   "This page could not load" errors on Vercel afterwards.
+
+## The fix — upload with git (never the web UI)
+
+### Option A: one command (recommended)
+```bash
+chmod +x deploy-to-github.sh
+./deploy-to-github.sh mobolajiolakunle8 artevo main
+```
+The script initialises git (if needed), commits the full **80-file** project,
+and pushes to your GitHub repository.
+
+### Option B: manual git
+```bash
+git init -b main
+git add -A
+git commit -m "ARTÉVO v1 — public website + admin studio"
+git remote add origin https://github.com/mobolajiolakunle8/artevo.git
+git push -u origin main
+```
+
+### Option C: ZIP bundle
+`artevo-deploy.zip` in the project root contains the exact deploy file set.
+Download it, and unzip into an empty folder, then run Option A or B from there.
+
+## Deployment file inventory (80 files, verified)
+
+| Area | Files |
+|---|---|
+| Public pages + layouts (`src/app`) | 45 |
+| Components (`src/components`) | 11 |
+| Database layer (`src/db`) | 6 |
+| Shared libs (`src/lib`) | 3 |
+| Brand logo assets (`public/logo`) | 3 |
+| Root config (package.json, next.config, tsconfig, postcss, vercel.json, .gitignore, .nvmrc, DEPLOY.md, .env.local.example) | 9 |
+| Git deploy tooling (deploy-to-github.sh) | 1 |
+| **Total** | **80** |
+
+Excluded (never pushed): `node_modules/`, `.next/`, `.env` (local secrets),
+`next-env.d.ts` / `tsconfig.tsbuildinfo` (auto-generated), `artevo-deploy.zip`
+(bundle artifact).
+
+Notes:
+- `.env.local.example` documents required variables; real `.env` stays local.
+- `public/uploads/` is created automatically at runtime — no git entry needed.
+- If GitHub still refuses a file, check the filename contains only A–Z,
+  a–z, 0–9, `-` and `_` (all current files comply).

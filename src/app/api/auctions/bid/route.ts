@@ -1,10 +1,13 @@
-import { db } from "@/db";
+import { db, isDatabaseConfigured } from "@/db";
 import { artworks, bids, analyticsEvents } from "@/db/schema";
 import { ensureDatabaseSeeded } from "@/db/init";
 import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
+  if (!isDatabaseConfigured()) {
+    return NextResponse.json({ error: "Database is not connected yet. Add DATABASE_URL in Vercel environment variables." }, { status: 503 });
+  }
   await ensureDatabaseSeeded();
   try {
     const { artworkId, bidderName, bidderEmail, bidderPhone, amount } = await request.json();

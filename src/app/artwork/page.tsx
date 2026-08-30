@@ -2,11 +2,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import ArtworkCard from "@/components/ArtworkCard";
 import Link from "next/link";
-import { db } from "@/db";
-import { artworks, collections } from "@/db/schema";
-import { ensureDatabaseSeeded } from "@/db/init";
-import { desc } from "drizzle-orm";
-import { fallbackArtworks, fallbackCollections } from "@/lib/fallback-data";
+import { queryCollections, queryArtworks } from "@/db/queries";
 
 export const revalidate = 0;
 
@@ -16,20 +12,8 @@ export default async function ArtworkListPage({
   searchParams: Promise<{ collection?: string; orientation?: string; search?: string }>;
 }) {
   const { collection, orientation, search } = await searchParams;
-  let allColls: any[] = fallbackCollections;
-  let allArtworks: any[] = fallbackArtworks;
 
-  try {
-    await ensureDatabaseSeeded();
-    const [dbCollections, dbArtworks] = await Promise.all([
-      db.select().from(collections).orderBy(collections.displayOrder),
-      db.select().from(artworks).orderBy(desc(artworks.createdAt)),
-    ]);
-    if (dbCollections.length) allColls = dbCollections;
-    if (dbArtworks.length) allArtworks = dbArtworks;
-  } catch (error) {
-    console.error("[ARTÉVO] Artwork listing fallback active:", error);
-  }
+  const [allColls, allArtworks] = await Promise.all([queryCollections(), queryArtworks()]);
 
   let filtered = allArtworks;
 

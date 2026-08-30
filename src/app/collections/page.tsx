@@ -1,34 +1,17 @@
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import Link from "next/link";
-import { db } from "@/db";
-import { collections, artworks } from "@/db/schema";
-import { ensureDatabaseSeeded } from "@/db/init";
-import { count } from "drizzle-orm";
-import { fallbackArtworks, fallbackCollections } from "@/lib/fallback-data";
-import { ArrowRight } from "lucide-react";
+import { queryCollections, queryArtworks } from "@/db/queries";
+import { ArrowRight, Layers } from "lucide-react";
 
 export const revalidate = 0;
 
 export default async function CollectionsPage() {
-  let allColls: any[] = fallbackCollections;
-  let countsMap = new Map<string, number>(
-    fallbackCollections.map((collection) => [collection.slug, fallbackArtworks.filter((art) => art.collectionSlug === collection.slug).length])
-  );
-
-  try {
-    await ensureDatabaseSeeded();
-    const [dbCollections, counts] = await Promise.all([
-      db.select().from(collections).orderBy(collections.displayOrder),
-      db
-        .select({ collectionSlug: artworks.collectionSlug, total: count(artworks.id) })
-        .from(artworks)
-        .groupBy(artworks.collectionSlug),
-    ]);
-    if (dbCollections.length) allColls = dbCollections;
-    if (counts.length) countsMap = new Map(counts.map((c) => [c.collectionSlug, c.total]));
-  } catch (error) {
-    console.error("[ARTÉVO] Collections fallback active:", error);
+  const allColls = await queryCollections();
+  const allArts = await queryArtworks();
+  const countsMap = new Map<string, number>();
+  for (const art of allArts) {
+    countsMap.set(art.collectionSlug, (countsMap.get(art.collectionSlug) || 0) + 1);
   }
 
   return (
