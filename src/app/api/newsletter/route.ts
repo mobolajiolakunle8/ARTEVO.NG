@@ -1,4 +1,5 @@
 import { db, isDatabaseConfigured } from "@/db";
+import { publishLive } from "@/lib/sync";
 import { newsletterSubscribers } from "@/db/schema";
 import { ensureDatabaseSeeded } from "@/db/init";
 import { desc, eq } from "drizzle-orm";
@@ -42,6 +43,7 @@ export async function POST(request: Request) {
       .values({ email: clean, source: source || "footer", status: "subscribed" })
       .returning();
 
+    publishLive({ channel: "newsletter", action: "subscribe", id: created.email });
     return NextResponse.json({ ok: true, subscriber: created });
   } catch (error) {
     console.error("POST /api/newsletter error:", error);

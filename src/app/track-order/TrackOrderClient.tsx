@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import Link from "next/link";
+import { useLiveSync } from "@/components/useWishlist";
 import {
   Search,
   PackageCheck,
@@ -25,6 +26,22 @@ export default function TrackOrderClient({ initialOrder, initialRef }: TrackOrde
   const [order, setOrder] = useState<any>(initialOrder);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+
+  // Live sync: when the admin verifies/advances this order in any browser, refetch it here.
+  const refetch = useCallback(async () => {
+    const ref = order?.orderRef || orderRefInput;
+    if (!ref) return;
+    try {
+      const res = await fetch("/api/orders/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderRef: ref }),
+      });
+      const data = await res.json();
+      if (res.ok && data.order) setOrder(data.order);
+    } catch { /* silent */ }
+  }, [order, orderRefInput]);
+  useLiveSync(["orders"], refetch);
 
   const handleTrackSearch = async (e: React.FormEvent) => {
     e.preventDefault();

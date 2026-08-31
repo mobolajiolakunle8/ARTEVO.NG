@@ -1,4 +1,5 @@
 import { db, isDatabaseConfigured } from "@/db";
+import { publishLive } from "@/lib/sync";
 import { paymentSettings } from "@/db/schema";
 import { ensureDatabaseSeeded } from "@/db/init";
 import { eq } from "drizzle-orm";
@@ -40,6 +41,7 @@ export async function PUT(request: Request) {
         .where(eq(paymentSettings.id, existing.id))
         .returning();
 
+      publishLive({ channel: "site-content", action: "payment" });
       return NextResponse.json({ settings: updated });
     } else {
       const [created] = await db

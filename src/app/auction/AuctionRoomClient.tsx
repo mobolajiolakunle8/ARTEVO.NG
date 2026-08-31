@@ -1,16 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import WatermarkImage from "@/components/WatermarkImage";
-import { Gavel, Clock, Trophy, Eye, Check, ShieldCheck, ArrowRight } from "lucide-react";
+import { useLiveSync } from "@/components/useWishlist";
+import { firebaseSyncPush } from "@/lib/firebase-sync";
+import { Gavel, Clock, Trophy, Eye, Check, ShieldCheck, ArrowRight, Radio } from "lucide-react";
 
 interface AuctionRoomClientProps {
   auctions: any[];
 }
 
 export default function AuctionRoomClient({ auctions }: AuctionRoomClientProps) {
+  const router = useRouter();
+  const [liveBadge, setLiveBadge] = useState(false);
   const [selectedArt, setSelectedArt] = useState<any>(null);
+
+  // Cross-browser: any new bid placed anywhere refreshes this page's data.
+  useLiveSync(["auctions", "artworks"], () => {
+    setLiveBadge(true);
+    router.refresh();
+    setTimeout(() => setLiveBadge(false), 2000);
+  });
   const [bidderName, setBidderName] = useState("");
   const [bidderEmail, setBidderEmail] = useState("");
   const [bidderPhone, setBidderPhone] = useState("");
@@ -52,6 +64,7 @@ export default function AuctionRoomClient({ auctions }: AuctionRoomClientProps) 
       }
 
       setBidSuccess(true);
+      firebaseSyncPush("auctions", "bid", selectedArt?.slug);
     } catch (err: any) {
       setErrorMsg(err.message);
     } finally {
@@ -66,8 +79,11 @@ export default function AuctionRoomClient({ auctions }: AuctionRoomClientProps) 
         <div className="inline-flex items-center gap-2 px-3.5 py-1 bg-[#FAF7F2]/10 rounded-full border border-[#B5965A]/30 text-[#B5965A] text-xs uppercase tracking-widest">
           <Gavel className="w-3.5 h-3.5" /> Private Bidding Room
         </div>
-        <h1 className="font-serif text-4xl sm:text-5xl font-light text-[#FAF7F2]">
+        <h1 className="font-serif text-4xl sm:text-5xl font-light text-[#FAF7F2] flex items-center justify-center gap-3">
           ARTÉVO Live Auctions
+          <span className={`inline-flex items-center gap-1 text-[10px] uppercase tracking-widest px-2 py-1 rounded-full border transition-all ${liveBadge ? "border-emerald-400 bg-emerald-400/20 text-emerald-300" : "border-[#B5965A]/40 text-[#B5965A]"}`}>
+            <Radio className={`w-3 h-3 ${liveBadge ? "animate-pulse" : ""}`} /> Live
+          </span>
         </h1>
         <p className="font-serif italic text-base sm:text-lg text-[#B7AEA2] max-w-2xl mx-auto font-normal">
           Direct acquisition for rare monotypes and featured masterworks. Place confidential bids verified by ARTÉVO Curatorial Desk.

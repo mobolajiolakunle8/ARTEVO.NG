@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import WatermarkImage from "@/components/WatermarkImage";
+import { useLiveSync } from "@/components/useWishlist";
+import { firebaseSyncPush } from "@/lib/firebase-sync";
 import {
   ShoppingBag,
   Gavel,
@@ -57,6 +60,10 @@ interface ArtworkDetailProps {
 }
 
 export default function ArtworkDetailClient({ artwork, collection, related }: ArtworkDetailProps) {
+  const router = useRouter();
+  // Live sync: when another browser places a bid or edits this artwork, refetch.
+  useLiveSync(["artworks", "auctions"], () => router.refresh());
+
   const imagesList = artwork.images && artwork.images.length > 0 ? artwork.images : [artwork.image];
   const sizesList = artwork.sizeOptions && artwork.sizeOptions.length > 0
     ? artwork.sizeOptions
@@ -118,6 +125,7 @@ export default function ArtworkDetailClient({ artwork, collection, related }: Ar
       }
 
       setBiddingSuccess(true);
+      firebaseSyncPush("auctions", "bid", artwork.slug);
     } catch (err: any) {
       setBiddingError(err.message);
     } finally {

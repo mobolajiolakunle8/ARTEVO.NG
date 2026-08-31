@@ -1,4 +1,5 @@
 import { db, isDatabaseConfigured } from "@/db";
+import { publishLive } from "@/lib/sync";
 import { orders, analyticsEvents } from "@/db/schema";
 import { ensureDatabaseSeeded } from "@/db/init";
 import { desc, eq, ilike, or } from "drizzle-orm";
@@ -80,6 +81,7 @@ export async function POST(request: Request) {
       meta: { orderRef, artworkRef: body.artworkRef, amount: body.amount },
     });
 
+    publishLive({ channel: "orders", action: "create", id: created.orderRef });
     return NextResponse.json({ order: created });
   } catch (error) {
     console.error("POST /api/orders error:", error);

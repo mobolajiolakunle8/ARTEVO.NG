@@ -1,4 +1,5 @@
 import { db, isDatabaseConfigured } from "@/db";
+import { publishLive } from "@/lib/sync";
 import { orders } from "@/db/schema";
 import { ensureDatabaseSeeded } from "@/db/init";
 import { eq } from "drizzle-orm";
@@ -63,6 +64,7 @@ export async function PUT(
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
+    publishLive({ channel: "orders", action: "update", id: updated.orderRef });
     return NextResponse.json({ order: updated });
   } catch (error) {
     console.error("PUT /api/orders/[orderRef] error:", error);

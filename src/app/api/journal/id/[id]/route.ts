@@ -1,4 +1,5 @@
 import { db } from "@/db";
+import { publishLive } from "@/lib/sync";
 import { journalArticles } from "@/db/schema";
 import { ensureDatabaseSeeded } from "@/db/init";
 import { eq } from "drizzle-orm";
@@ -31,6 +32,7 @@ export async function PUT(
       .where(eq(journalArticles.id, numId))
       .returning();
 
+    publishLive({ channel: "journal", action: "update", id: numId });
     return NextResponse.json({ article: updated });
   } catch (error) {
     console.error("PUT /api/journal/id/[id] error:", error);
@@ -48,6 +50,7 @@ export async function DELETE(
 
   try {
     await db.delete(journalArticles).where(eq(journalArticles.id, numId));
+    publishLive({ channel: "journal", action: "delete", id: numId });
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("DELETE /api/journal/id/[id] error:", error);

@@ -1,8 +1,9 @@
 import { db, isDatabaseConfigured } from "@/db";
+import { publishLive } from "@/lib/sync";
 import { collections, artworks } from "@/db/schema";
 import { ensureDatabaseSeeded } from "@/db/init";
 import { eq, asc, count } from "drizzle-orm";
-import { FALLBACK_COLLECTIONS, FALLBACK_ARTWORKS } from "@/lib/catalog-fallback";
+import { FALLBACK_COLLECTIONS, FALLBACK_ARTWORKS } from "@/db/queries";
 import { NextResponse } from "next/server";
 
 export async function GET() {
@@ -58,6 +59,7 @@ export async function POST(request: Request) {
       })
       .returning();
 
+    publishLive({ channel: "collections", action: "create", id: created.slug });
     return NextResponse.json({ collection: created });
   } catch (error) {
     console.error("POST /api/collections error:", error);

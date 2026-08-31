@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { MessageCircle, ArrowUp, X } from "lucide-react";
 import { BRAND, whatsappHref } from "@/lib/brand";
+import { initFirebaseAnalytics } from "@/lib/firebase";
 
 /**
  * Global site widgets (single file keeps the deploy footprint lean):
@@ -13,6 +15,30 @@ import { BRAND, whatsappHref } from "@/lib/brand";
 export default function SiteWidgets() {
   const [showTop, setShowTop] = useState(false);
   const [showTip, setShowTip] = useState(false);
+  const pathname = usePathname();
+  const lastTracked = useRef<string>("");
+
+  // Firebase Analytics — initialise once on first mount
+  useEffect(() => {
+    initFirebaseAnalytics().catch(() => {});
+  }, []);
+
+  // Route-change analytics — fire-and-forget page/artwork view events.
+  useEffect(() => {
+    if (!pathname || lastTracked.current === pathname) return;
+    lastTracked.current = pathname;
+    const isArtwork = pathname.startsWith("/artwork/");
+    fetch("/api/analytics/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        eventType: isArtwork ? "artwork_view" : "page_view",
+        path: pathname,
+        artworkSlug: isArtwork ? pathname.split("/artwork/")[1] : null,
+      }),
+      keepalive: true,
+    }).catch(() => {});
+  }, [pathname]);
 
   useEffect(() => {
     // Skip-link focus management: first Tab press moves focus to #main-content

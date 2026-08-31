@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Megaphone } from "lucide-react";
-import { listenBroadcast } from "@/lib/sync";
+import { useLiveSync } from "./useWishlist";
 
 const DEFAULT_TICKER =
   "New arrivals in the African Soul collection | Limited editions now open for acquisition | Bespoke commissions for homes, offices & hospitality | Order via bank transfer with full tracking";
@@ -32,9 +32,10 @@ export default function AnnouncementBar() {
 
   useEffect(() => {
     load();
-    const unlisten = listenBroadcast("artevo-site-content", load);
-    return unlisten;
   }, []);
+
+  // Cross-browser + cross-tab: refetch announcement copy when admin edits site content anywhere.
+  useLiveSync(["site-content"], load);
 
   if (!loaded || enabled !== "1") return null;
 

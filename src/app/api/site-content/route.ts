@@ -1,4 +1,5 @@
 import { db, isDatabaseConfigured } from "@/db";
+import { publishLive } from "@/lib/sync";
 import { siteContent } from "@/db/schema";
 import { ensureDatabaseSeeded } from "@/db/init";
 import { eq, and } from "drizzle-orm";
@@ -92,6 +93,7 @@ export async function PUT(request: Request) {
         }
       }
     }
+    publishLive({ channel: "site-content", action: "update" });
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("PUT /api/site-content", err);

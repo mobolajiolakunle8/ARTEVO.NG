@@ -1,4 +1,5 @@
 import { db, isDatabaseConfigured } from "@/db";
+import { publishLive } from "@/lib/sync";
 import { inquiries, analyticsEvents } from "@/db/schema";
 import { ensureDatabaseSeeded } from "@/db/init";
 import { desc, eq } from "drizzle-orm";
@@ -44,6 +45,7 @@ export async function POST(request: Request) {
       meta: { type: body.type, name: body.name, email: body.email },
     });
 
+    publishLive({ channel: "inquiries", action: "create", id: created.id });
     return NextResponse.json({ inquiry: created });
   } catch (error) {
     console.error("POST /api/inquiries error:", error);

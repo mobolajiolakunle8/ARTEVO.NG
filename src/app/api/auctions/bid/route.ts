@@ -1,4 +1,5 @@
 import { db, isDatabaseConfigured } from "@/db";
+import { publishLive } from "@/lib/sync";
 import { artworks, bids, analyticsEvents } from "@/db/schema";
 import { ensureDatabaseSeeded } from "@/db/init";
 import { eq } from "drizzle-orm";
@@ -61,6 +62,8 @@ export async function POST(request: Request) {
       meta: { amount, bidderName, bidderEmail },
     });
 
+    publishLive({ channel: "auctions", action: "bid", id: art.slug });
+    publishLive({ channel: "artworks", action: "update", id: art.slug });
     return NextResponse.json({ bid: newBid, currentHighestBid: Number(amount) });
   } catch (error) {
     console.error("POST /api/auctions/bid error:", error);

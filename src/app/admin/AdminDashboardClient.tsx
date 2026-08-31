@@ -4,8 +4,14 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import Logo from "@/components/Logo";
 import ImageUploader from "@/components/ImageUploader";
+import DatabaseSetupGuide from "@/components/DatabaseSetupGuide";
+import { useLiveSync } from "@/components/useWishlist";
+import { useAuth } from "@/components/useAuth";
+import { Monitor, Wifi, WifiOff } from "lucide-react";
 import { BRAND } from "@/lib/brand";
 import { syncBroadcast } from "@/lib/sync";
+import { firebaseSyncPush } from "@/lib/firebase-sync";
+import { useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Palette,
@@ -41,7 +47,6 @@ import {
   RefreshCw,
   Info,
   Upload,
-  AlertTriangle,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -102,7 +107,20 @@ export default function AdminDashboardClient({
   initialSubscribers = [],
   databaseReady = true,
 }: AdminDashboardClientProps) {
+  const router = useRouter();
+  const { user, signOut, firebaseEnabled, liveSessions, presenceState } = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
+  const [liveIndicator, setLiveIndicator] = useState(false);
+
+  // Cross-browser live sync: any change made in another browser instantly refreshes admin data.
+  useLiveSync(
+    ["orders", "auctions", "artworks", "collections", "journal", "site-content", "inquiries", "newsletter"],
+    () => {
+      setLiveIndicator(true);
+      router.refresh();
+      setTimeout(() => setLiveIndicator(false), 1500);
+    }
+  );
 
   const [artworksList, setArtworksList] = useState(initialArtworks);
   const [collectionsList, setCollectionsList] = useState(initialCollections);
@@ -175,6 +193,7 @@ export default function AdminDashboardClient({
       syncBroadcast("artevo-site-content", { ts: Date.now() });
       setSiteEditorSuccess(true);
       showToast("Website content updated and published.");
+      firebaseSyncPush("site-content", "update");
       setTimeout(() => setSiteEditorSuccess(false), 3500);
     } catch (e) { console.error(e); }
     finally { setSiteEditorSaving(false); }
@@ -314,6 +333,7 @@ export default function AdminDashboardClient({
         if (res.ok) {
           setArtworksList((prev) => prev.map((a) => (a.id === editingArt.id ? data.artwork : a)));
           showToast("Artwork updated successfully.");
+          firebaseSyncPush("artworks", "update", editingArt.id);
         }
       } else {
         const res = await fetch("/api/artworks", {
@@ -325,6 +345,7 @@ export default function AdminDashboardClient({
         if (res.ok) {
           setArtworksList((prev) => [data.artwork, ...prev]);
           showToast("New artwork published to catalog.");
+          firebaseSyncPush("artworks", "create", data.artwork?.slug);
         }
       }
       setShowArtModal(false);
@@ -345,6 +366,7 @@ export default function AdminDashboardClient({
         setArtworksList((prev) => prev.filter((a) => a.id !== id));
         setConfirmDeleteId(null);
         showToast("Artwork removed from catalog.");
+        firebaseSyncPush("artworks", "delete", id);
       }
     } catch (e) {
       console.error(e);
@@ -364,6 +386,7 @@ export default function AdminDashboardClient({
         setBankConfig(data.settings);
         setSaveBankSuccess(true);
         showToast("Bank transfer settings published to all checkout pages.");
+        firebaseSyncPush("site-content", "payment");
         setTimeout(() => setSaveBankSuccess(false), 3000);
       }
     } catch (e) {
@@ -391,6 +414,7 @@ export default function AdminDashboardClient({
         setCollectionsList((prev) => [...prev, data.collection]);
         setShowCollModal(false);
         showToast("New collection created.");
+        firebaseSyncPush("collections", "create", data.collection?.slug);
       }
     } catch (e) {
       console.error(e);
@@ -488,40 +512,92 @@ export default function AdminDashboardClient({
           })}
         </nav>
 
-        <div className="p-4 border-t border-[#FAF7F2]/10 bg-[#0d0d0d]">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-[#B5965A] text-[#161616] flex items-center justify-center font-serif font-bold text-sm">
-              AC
+        <div className="p-4 border-t border-[#FAF7F2]/10 bg-[#0d0d0d] space-y-3">
+          {/* Realtime session status */}
+          {firebaseEnabled && user && (
+            <div className="rounded border border-[#B5965A]/30 bg-[#161616] p-2.5">
+              <div className="flex items-center justify-between text-[10px] uppercase tracking-widest text-[#B7AEA2]">
+                <span>Live sessions</span>
+                {presenceState === "online" ? (
+                  <span className="flex items-center gap-1 text-emerald-400">
+                    <Wifi className="w-3 h-3" /> Online
+                  </span>
+                ) : presenceState === "connecting" ? (
+                  <span className="text-amber-400">connecting…</span>
+                ) : (
+                  <span className="flex items-center gap-1 text-red-400">
+                    <WifiOff className="w-3 h-3" /> Offline
+                  </span>
+                )}
+              </div>
+              <div className="mt-1.5 space-y-1">
+                {liveSessions.length === 0 ? (
+                  <p className="text-[10px] text-[#B7AEA2]">No active sessions detected.</p>
+                ) : (
+                  liveSessions.slice(0, 5).map((s, i) => (
+                    <div key={`${s.email}-${s.lastSeen}-${i}`} className="flex items-center gap-1.5 text-[10px]">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                      <span className="truncate text-[#FAF7F2]">{s.email}</span>
+                      <span className="ml-auto flex items-center gap-0.5 text-[#B5965A] shrink-0">
+                        <Monitor className="w-3 h-3" /> {s.device.split("·")[0]?.trim() || "device"}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
-            <div>
-              <div className="text-xs text-[#FAF7F2] font-semibold">Chief Curator</div>
-              <div className="text-[10px] text-[#B7AEA2] flex items-center gap-1">
-                <ShieldCheck className="w-3 h-3 text-[#B5965A]" /> Administrator
+          )}
+
+          <div className="flex items-center gap-3">
+            {user?.photoURL ? (
+              <img src={user.photoURL} alt="" className="w-9 h-9 rounded-full object-cover ring-2 ring-[#B5965A]" />
+            ) : (
+              <div className="w-9 h-9 rounded-full bg-[#B5965A] text-[#161616] flex items-center justify-center font-serif font-bold text-sm">
+                {(user?.displayName?.[0] || user?.email?.[0] || "A").toUpperCase()}
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="text-xs text-[#FAF7F2] font-semibold truncate">
+                {user?.displayName || "Chief Curator"}
+              </div>
+              <div className="text-[10px] text-[#B7AEA2] truncate">
+                {user?.email || BRAND.email}
               </div>
             </div>
           </div>
+          {firebaseEnabled && user && (
+            <button
+              onClick={() => signOut()}
+              className="w-full text-center text-[10px] uppercase tracking-widest text-[#B7AEA2] hover:text-[#FAF7F2] border border-[#FAF7F2]/10 rounded py-1.5 transition-colors"
+            >
+              Sign Out
+            </button>
+          )}
         </div>
       </aside>
 
       {/* ---------- Main ---------- */}
       <div className="flex-1 min-w-0 w-full space-y-6">
-        {/* Database status banner */}
-        {!databaseReady && (
-          <div className="bg-amber-50 border border-amber-300 text-amber-900 rounded-lg p-4 flex items-start gap-3 text-xs">
-            <AlertTriangle className="w-5 h-5 shrink-0 text-amber-600" />
-            <div>
-              <strong className="block">PostgreSQL is not connected yet.</strong>
-              Add <code className="bg-amber-100 px-1 rounded font-mono">DATABASE_URL</code> in
-              Vercel → Settings → Environment Variables, then redeploy. The public catalog is
-              currently serving preview content; orders, bids and admin saves require the database.
-            </div>
-          </div>
-        )}
+        {/* Live database status + guided setup wizard */}
+        <DatabaseSetupGuide />
 
         {/* Top bar */}
         <div className="bg-[#FAF7F2] border border-[#161616]/15 rounded-lg p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
           <div>
-            <h1 className="font-serif text-2xl text-[#161616]">{tabMeta[activeTab].title}</h1>
+            <h1 className="font-serif text-2xl text-[#161616] flex items-center gap-2">
+              {tabMeta[activeTab].title}
+              <span
+                title={liveIndicator ? "Live update received" : "Live sync connected"}
+                className={`inline-flex items-center gap-1 text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded border transition-all ${
+                  liveIndicator
+                    ? "border-emerald-500 bg-emerald-100 text-emerald-800"
+                    : "border-[#B5965A]/40 text-[#B5965A]"
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${liveIndicator ? "bg-emerald-500 animate-pulse" : "bg-[#B5965A]"}`} />
+                Live
+              </span>
+            </h1>
             <p className="text-xs text-[#B7AEA2] mt-0.5">{tabMeta[activeTab].sub}</p>
           </div>
           <div className="flex items-center gap-2">

@@ -1,8 +1,9 @@
 import { db, isDatabaseConfigured } from "@/db";
+import { publishLive } from "@/lib/sync";
 import { journalArticles } from "@/db/schema";
 import { ensureDatabaseSeeded } from "@/db/init";
 import { eq, desc, and } from "drizzle-orm";
-import { FALLBACK_ARTICLES } from "@/lib/catalog-fallback";
+import { FALLBACK_ARTICLES } from "@/db/queries";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
@@ -68,6 +69,7 @@ export async function POST(request: Request) {
       })
       .returning();
 
+    publishLive({ channel: "journal", action: "create", id: created.slug });
     return NextResponse.json({ article: created });
   } catch (error) {
     console.error("POST /api/journal error:", error);

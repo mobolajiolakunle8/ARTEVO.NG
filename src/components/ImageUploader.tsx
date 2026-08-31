@@ -2,13 +2,14 @@
 
 import { useRef, useState, DragEvent } from "react";
 import { Upload, X, ImageIcon, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
+import { uploadToFirebase } from "@/lib/firebase-storage";
 
 interface UploadedFile {
   url: string;
   filename: string;
   originalName: string;
   sizeKB: number;
-  storage: "filesystem" | "inline";
+  storage: "filesystem" | "inline" | "firebase";
 }
 
 interface ImageUploaderProps {
@@ -112,14 +113,35 @@ export default function ImageUploader({
       const compressed = await Promise.all(chosen.map(compressImage));
 
       setProgressLabel("Uploading compressed artwork…");
-      const formData = new FormData();
-      compressed.forEach((file) => formData.append("files", file, file.name));
 
-      const response = await fetch("/api/upload", { method: "POST", body: formData });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Upload failed.");
+      // Strategy: try Firebase Storage first (CDN-backed, permanent).
+      // If Firebase is not configured, fall back to /api/upload (data URI on Vercel).
+      const newUploads: UploadedFile[] = [];
+      let usedFirebase = false;
 
-      const newUploads = data.uploads as UploadedFile[];
+      for (const file of compressed) {
+        const fbResult = await uploadToFirebase(file);
+        if (fbResult) {
+          usedFirebase = true;
+          newUploads.push({
+            url: fbResult.url,
+            filename: file.name,
+            originalName: file.name,
+            sizeKB: fbResult.sizeKB,
+            storage: "firebase",
+          });
+        }
+      }
+
+      // Fallback: use /api/upload for any files that Firebase didn't handle
+      if (!usedFirebase) {
+        const formData = new FormData();
+        compressed.forEach((file) => formData.append("files", file, file.name));
+        const response = await fetch("/api/upload", { method: "POST", body: formData });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Upload failed.");
+        newUploads.push(...(data.uploads as UploadedFile[]));
+      }
       const newUrls = newUploads.map((item) => item.url);
       const nextUploads = multiple ? [...uploaded, ...newUploads] : newUploads;
       const nextUrls = multiple ? [...previews, ...newUrls] : newUrls;

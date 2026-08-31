@@ -1,4 +1,5 @@
 import { db } from "@/db";
+import { publishLive } from "@/lib/sync";
 import { artworks } from "@/db/schema";
 import { ensureDatabaseSeeded } from "@/db/init";
 import { eq } from "drizzle-orm";
@@ -42,6 +43,7 @@ export async function PUT(
       .where(eq(artworks.id, numId))
       .returning();
 
+    publishLive({ channel: "artworks", action: "update", id: numId });
     return NextResponse.json({ artwork: updated });
   } catch (error) {
     console.error("PUT /api/artworks/id/[id] error:", error);
@@ -59,6 +61,7 @@ export async function DELETE(
 
   try {
     await db.delete(artworks).where(eq(artworks.id, numId));
+    publishLive({ channel: "artworks", action: "delete", id: numId });
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("DELETE /api/artworks/id/[id] error:", error);

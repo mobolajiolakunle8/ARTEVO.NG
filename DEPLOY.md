@@ -238,3 +238,116 @@ Notes:
 - `public/uploads/` is created automatically at runtime — no git entry needed.
 - If GitHub still refuses a file, check the filename contains only A–Z,
   a–z, 0–9, `-` and `_` (all current files comply).
+
+---
+
+# Cross-browser live sync
+
+ARTÉVO has full cross-browser live sync built in — new bids, orders, admin
+edits and announcements appear on every open browser and device instantly,
+without page refresh.
+
+## What syncs live across browsers
+
+| Channel | Fires when… | Refreshes… |
+|---|---|---|
+| `artworks` | Admin adds/edits/deletes an artwork | Public catalog, artwork detail |
+| `auctions` | A bid is placed anywhere | Auction Room, artwork detail |
+| `orders` | Customer places an order OR admin advances status | Admin dashboard, `/track-order` |
+| `site-content` | Admin edits hero/announcement/contact | Announcement bar (all tabs) |
+| `collections` / `journal` / `inquiries` / `newsletter` | Admin CRUD or customer action | Admin dashboard |
+
+## How it works (three layers)
+
+1. **BroadcastChannel** — same-browser cross-tab sync (`src/lib/sync.ts`)
+2. **Server-Sent Events** — `/api/sync/stream` pushes a change event to
+   every connected browser worldwide via a persistent HTTP stream
+   (`src/lib/live-bus.ts`, `src/app/api/sync/stream/route.ts`)
+3. **On-focus catch-up** — if a tab was backgrounded/offline, it refetches
+   when it regains focus
+
+The `useLiveSync(channels, callback)` hook (`src/components/useLiveSync.ts`)
+combines all three; call sites just declare which channels they care about.
+
+## Vercel setup for cross-browser sync
+
+The SSE endpoint runs on Vercel Node.js runtime and holds each connection for
+up to 5 minutes before recycling (clients auto-reconnect). No extra setup —
+it works out of the box on Hobby and Pro plans. For very large traffic,
+enable **Fluid Compute** in Vercel project settings so SSE connections
+don't count as separate function invocations.
+
+## Verify after deploy
+
+1. Open the site in **Chrome on your laptop** at `/auction`.
+2. Open it in **Safari on your phone** at the same URL.
+3. Place a bid on Safari.
+4. Chrome updates the highest bid within ~1 second, no refresh needed —
+   with a pulsing "Live" indicator confirming the push arrived.
+
+---
+
+# Fixing "PostgreSQL is not connected yet"
+
+This warning appears when the site is running on Vercel without a real
+PostgreSQL database attached. The public site still works (it falls back to
+built-in preview content), but orders, bids, admin saves, and cross-browser
+live sync all require a database.
+
+## Fastest path — Vercel Postgres (recommended)
+
+1. Open your Vercel dashboard → **Storage** tab → **Create Database** →
+   **Postgres** → choose a name (e.g. `artevo`) and region.
+2. On the "Connect Project" screen, tick your ARTÉVO project. Vercel will
+   automatically add `DATABASE_URL` to every environment for you.
+3. Go to **Deployments** → the latest deploy → **⋯ menu** → **Redeploy**.
+   Uncheck *"Use existing Build Cache"* the first time so the new
+   environment variable is picked up.
+4. Open `/admin` — the amber "Database is not connected yet" panel now
+   shows a green "Database connected" stripe. Tables auto-create on the
+   first request; sample content seeds if the catalog is empty.
+
+## Alternative — Neon / Supabase / Railway
+
+Any managed PostgreSQL works. The setup is identical:
+
+1. Create a Postgres database on your provider of choice (all have free
+   tiers).
+2. Copy the connection string (must start with `postgresql://`, not
+   `postgres://` prefix from local dev):
+   - **Neon**: Project → Connection Details → *pooled* connection.
+   - **Supabase**: Settings → Database → Connection string → **URI**.
+   - **Railway**: Postgres service → Connect → **DATABASE_URL**.
+3. In Vercel → Settings → **Environment Variables** → Add:
+   - Name: `DATABASE_URL`
+   - Value: *(paste the connection string)*
+   - Environments: Production, Preview, Development (tick all three).
+4. Redeploy without cache.
+
+## What you must never do
+
+- **Never** paste your local `postgresql://postgres:postgres@127.0.0.1:5432/app_db`
+  into Vercel. Vercel serverless functions cannot reach your laptop.
+- **Never** use `@secret-name` values in `vercel.json`. Paste the connection
+  string directly into the environment variable field.
+- **Never** delete or lower-case the variable name — it must be exactly
+  `DATABASE_URL`.
+
+## Live diagnostics (built into the admin)
+
+Every ARTÉVO admin page now includes an in-app **Database Setup Guide** that:
+
+- Shows the current environment (Vercel or local), whether `DATABASE_URL`
+  is set, real-time connection latency, and how many of the 11 required
+  tables exist.
+- Surfaces the raw Postgres error message if the connection fails, so you
+  can see immediately whether the issue is a wrong password, a paused
+  database, an SSL block, or a firewall.
+- Provides one-click links to Vercel Storage and Environment Variables,
+  step-by-step instructions, and copy buttons for the variable name and an
+  example value.
+- Auto-refreshes with **Re-check status** so you can verify success without
+  reloading the whole dashboard.
+
+Endpoint: `/api/sync/diagnostics` — returns JSON that never exposes the
+raw connection string; only the provider and host are surfaced.

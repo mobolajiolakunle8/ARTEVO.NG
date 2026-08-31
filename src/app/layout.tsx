@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Suspense } from "react";
 import "./globals.css";
-import AnalyticsTracker from "@/components/AnalyticsTracker";
 import SiteWidgets from "@/components/SiteWidgets";
+import { AuthProvider } from "@/components/useAuth";
+
 
 export const metadata: Metadata = {
   title: "ARTÉVO — Art. Evolved. | Contemporary Art from Ibadan, Nigeria",
@@ -23,11 +24,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body className="bg-[#FAF7F2] text-[#161616] antialiased" id="main-content">
-        <Suspense fallback={null}>
-          <AnalyticsTracker />
-        </Suspense>
-        {children}
-        <SiteWidgets />
+        <AuthProvider>
+          {children}
+          <Suspense fallback={null}>
+            <SiteWidgets />
+          </Suspense>
+        </AuthProvider>
       </body>
     </html>
   );
