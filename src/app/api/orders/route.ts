@@ -1,4 +1,5 @@
 import { db, isDatabaseConfigured } from "@/db";
+import { adminUnauthorized, verifyAdminRequest } from "@/lib/admin-auth";
 import { publishLive } from "@/lib/sync";
 import { orders, analyticsEvents } from "@/db/schema";
 import { ensureDatabaseSeeded } from "@/db/init";
@@ -6,6 +7,8 @@ import { desc, eq, ilike, or } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
+  const admin = await verifyAdminRequest(request);
+  if (!admin.ok) return adminUnauthorized(admin.reason);
   await ensureDatabaseSeeded();
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status");

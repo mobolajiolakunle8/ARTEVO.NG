@@ -1,4 +1,5 @@
 import { db } from "@/db";
+import { adminUnauthorized, verifyAdminRequest } from "@/lib/admin-auth";
 import { publishLive } from "@/lib/sync";
 import { artworks } from "@/db/schema";
 import { ensureDatabaseSeeded } from "@/db/init";
@@ -9,6 +10,9 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const admin = await verifyAdminRequest(request);
+  if (!admin.ok) return adminUnauthorized(admin.reason);
+
   await ensureDatabaseSeeded();
   const { id } = await params;
   const numId = parseInt(id, 10);
@@ -55,6 +59,9 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const admin = await verifyAdminRequest(request);
+  if (!admin.ok) return adminUnauthorized(admin.reason);
+
   await ensureDatabaseSeeded();
   const { id } = await params;
   const numId = parseInt(id, 10);

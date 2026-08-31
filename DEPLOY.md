@@ -351,3 +351,230 @@ Every ARTÉVO admin page now includes an in-app **Database Setup Guide** that:
 
 Endpoint: `/api/sync/diagnostics` — returns JSON that never exposes the
 raw connection string; only the provider and host are surfaced.
+
+---
+
+# Firebase Auth + Realtime Admin Security
+
+ARTÉVO now uses Firebase to authenticate the Admin Studio and power real-time
+cross-browser updates.
+
+## What is protected
+
+- `/admin` is protected by Firebase Auth.
+- Server-rendered admin data is only fetched when the browser has a valid
+  HttpOnly `artevo_admin_token` session cookie.
+- Admin-only API calls require a Firebase ID token in the `Authorization:
+  Bearer <token>` header:
+  - `GET /api/orders`
+  - artwork create/edit/delete
+  - collection create
+  - journal create/edit/delete
+  - payment settings update
+  - website editor save
+  - admin order status updates
+- Public customer actions stay open:
+  - order creation
+  - payment proof submission
+  - bids
+  - contact inquiries
+  - newsletter subscription
+
+## Firebase project in use
+
+Project ID: `artevo-1188a`  
+Realtime Database: `https://artevo-1188a-default-rtdb.firebaseio.com/`  
+Storage bucket: `artevo-1188a.firebasestorage.app`  
+Analytics measurement: `G-WJ8H77YGCQ`
+
+## Create the admin user
+
+1. Firebase Console → **Authentication** → **Users** → **Add user**.
+2. Email: `mobolajiolakunle8@gmail.com`.
+3. Set a strong password.
+4. Firebase Console → Authentication → **Sign-in method**:
+   - Enable **Email/Password**.
+   - Enable **Google** if you want one-click Google sign-in.
+5. Firebase Console → Authentication → **Settings → Authorized domains**:
+   - Add your Vercel production domain.
+   - Add your custom domain if you connect one.
+
+## Realtime Database rules
+
+Firebase Console → Realtime Database → Rules:
+
+```json
+{
+  "rules": {
+    "artevo-sync": {
+      ".read": true,
+      ".write": true
+    },
+    "artevo-admin-presence": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    }
+  }
+}
+```
+
+`artevo-sync` only stores small, non-sensitive change pulses such as:
+`{ action: "update", id: "ART-AFR-001", ts: ... }`. It does not store customer
+PII. Sensitive business data remains in PostgreSQL and behind authenticated
+admin APIs.
+
+## Firebase Storage rules
+
+Firebase Console → Storage → Rules:
+
+```txt
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /artworks/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+  }
+}
+```
+
+## Vercel environment variables
+
+Add these to **Production**, **Preview**, and **Development** environments:
+
+```txt
+NEXT_PUBLIC_FIREBASE_API_KEY=AIzaSyA0Ho-ObbE0Uc9VIqDxvwnWeuwE6SGbcoY
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=artevo-1188a.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=artevo-1188a
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=artevo-1188a.firebasestorage.app
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=346561178602
+NEXT_PUBLIC_FIREBASE_APP_ID=1:346561178602:web:544b32a9f20ebb7dd6e093
+NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=G-WJ8H77YGCQ
+NEXT_PUBLIC_FIREBASE_DATABASE_URL=https://artevo-1188a-default-rtdb.firebaseio.com
+NEXT_PUBLIC_ADMIN_EMAILS=mobolajiolakunle8@gmail.com
+```
+
+For push notifications, also add this after generating it in Firebase Console →
+Cloud Messaging → Web Push certificates:
+
+```txt
+NEXT_PUBLIC_FIREBASE_VAPID_KEY=<paste generated VAPID key>
+```
+
+## How the authenticated realtime flow works
+
+1. Admin opens `/admin`.
+2. Firebase Auth displays the login screen.
+3. After login, the browser obtains a Firebase ID token.
+4. `/api/auth/session` verifies that token against Firebase Identity Toolkit and
+   confirms the email is whitelisted.
+5. The server sets an HttpOnly admin session cookie.
+6. The dashboard refreshes and securely loads orders/customers/settings.
+7. The admin's presence is written to Firebase Realtime Database at
+   `artevo-admin-presence/{uid}`.
+8. Every admin action publishes a Firebase RTDB sync pulse; all browsers refresh
+   instantly.
+
+## Verification checklist
+
+- Open `/admin` in an incognito window: you should see the Firebase login.
+- Sign in with `mobolajiolakunle8@gmail.com`.
+- Firebase Realtime Database should show `artevo-admin-presence/<uid>` as online.
+- Directly calling `/api/orders` without login should return `401`.
+- After login, the dashboard loads orders and admin saves work normally.
+
+---
+
+# Fixing "auth/network-request-failed"
+
+This Firebase error means the browser could not reach Google's authentication
+servers. It is a **network/domain problem**, not a code bug.
+
+## Fastest diagnosis
+
+The admin login screen now detects this automatically and shows an amber panel
+with your current hostname and a **Test connection** button. It also offers a
+**Use backup code** option so you are never locked out.
+
+## Causes and fixes, in order of likelihood
+
+### 1. Domain not authorised in Firebase (most common)
+Firebase rejects sign-ins from domains it does not recognise.
+
+**Fix:** Firebase Console → **Authentication** → **Settings** →
+**Authorized domains** → **Add domain**, then add:
+
+```txt
+localhost
+artevo.vercel.app
+<your-project>-<hash>-<scope>.vercel.app
+<your-custom-domain.com>
+```
+
+Every Vercel preview deployment uses a unique subdomain. Either add each one, or
+add your production custom domain and always test there.
+
+### 2. Ad-blocker, VPN, or firewall blocking Google
+Corporate networks and privacy extensions commonly block
+`identitytoolkit.googleapis.com` and `*.firebaseapp.com`.
+
+**Fix:** Disable the blocker/VPN, or whitelist those two hosts, then retry.
+
+### 3. Genuine connectivity loss
+Offline, DNS failure, or captive portal.
+
+**Fix:** The login form automatically **retries three times** with increasing
+delay before showing the error, so brief blips self-heal.
+
+### 4. Sign-in method disabled
+If Email/Password or Google is disabled in Firebase, sign-in cannot proceed.
+
+**Fix:** Firebase Console → Authentication → Sign-in method → enable
+**Email/Password** and **Google**.
+
+## Emergency backup unlock (never be locked out)
+
+If Firebase cannot be reached, you can still sign in with a server-verified
+access code. This requires one extra Vercel environment variable:
+
+```txt
+ADMIN_ACCESS_CODE=<a long random private phrase>
+```
+
+Requirements:
+- Minimum 8 characters (longer is better).
+- Keep it secret — it is a master key.
+- Optionally set `ADMIN_SESSION_SECRET` to a different random value; otherwise
+  the access code is used to derive the session signature.
+
+Then on the login screen:
+1. Click **Use backup code** (appears automatically on network errors).
+2. Paste the access code.
+3. Click **Unlock without Firebase**.
+
+## How the backup path stays secure
+
+- The access code is **never** sent to or stored by the browser.
+- Verification uses `timingSafeEqual` to prevent timing attacks.
+- The cookie holds an HMAC-SHA256 session signature derived from
+  `ADMIN_SESSION_SECRET`, never the code itself.
+- The path is disabled entirely unless `ADMIN_ACCESS_CODE` is configured.
+- When unavailable, `/api/auth/fallback` returns `{ available: false }`.
+- All admin APIs accept either a valid Firebase ID token or a valid backup
+  session — the same authorisation rules apply to both.
+
+## All Firebase auth errors now explained
+
+The login screen maps every Firebase error code to plain English:
+
+| Firebase code | What the UI says |
+|---|---|
+| `network-request-failed` | Cannot reach Firebase; shows domain + backup options |
+| `invalid-credential` / `wrong-password` | Incorrect email or password |
+| `user-not-found` | No admin account exists with that email |
+| `unauthorized-domain` | Shows your hostname and where to authorise it |
+| `operation-not-allowed` | Enable the sign-in method in Firebase Console |
+| `popup-blocked` | Allow popups (Google sign-in auto-falls back to redirect) |
+| `too-many-requests` | Wait a moment, then retry |
+| `api-key-not-valid` | Firebase API key missing/invalid in Vercel |

@@ -1,11 +1,14 @@
 import { db, isDatabaseConfigured } from "@/db";
+import { adminUnauthorized, verifyAdminRequest } from "@/lib/admin-auth";
 import { publishLive } from "@/lib/sync";
 import { inquiries, analyticsEvents } from "@/db/schema";
 import { ensureDatabaseSeeded } from "@/db/init";
 import { desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
-export async function GET() {
+export async function GET(request: Request) {
+  const admin = await verifyAdminRequest(request);
+  if (!admin.ok) return adminUnauthorized(admin.reason);
   await ensureDatabaseSeeded();
   try {
     const list = await db.select().from(inquiries).orderBy(desc(inquiries.createdAt));

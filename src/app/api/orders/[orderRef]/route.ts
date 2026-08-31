@@ -1,4 +1,5 @@
 import { db, isDatabaseConfigured } from "@/db";
+import { adminUnauthorized, verifyAdminRequest } from "@/lib/admin-auth";
 import { publishLive } from "@/lib/sync";
 import { orders } from "@/db/schema";
 import { ensureDatabaseSeeded } from "@/db/init";
@@ -44,6 +45,13 @@ export async function PUT(
 
   try {
     const body = await request.json();
+    const isCustomerPaymentSubmission =
+      body.status === "Payment Submitted" && typeof body.paymentProofRef === "string";
+    const adminOnlyUpdate = Boolean((body.status && !isCustomerPaymentSubmission) || body.shippingAddress);
+    if (adminOnlyUpdate) {
+      const admin = await verifyAdminRequest(request);
+      if (!admin.ok) return adminUnauthorized(admin.reason);
+    }
 
     const updateFields: Record<string, unknown> = {
       updatedAt: new Date(),

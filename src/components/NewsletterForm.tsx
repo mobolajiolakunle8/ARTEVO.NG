@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Mail, Check, Loader2 } from "lucide-react";
+import { firebaseSyncPush } from "@/lib/firebase-sync";
 
 export default function NewsletterForm() {
   const [email, setEmail] = useState("");
@@ -23,6 +24,7 @@ export default function NewsletterForm() {
       setStatus("done");
       setMessage(data.alreadySubscribed ? "You're already on the list — thank you." : "Welcome to the ARTÉVO circle.");
       setEmail("");
+      firebaseSyncPush("newsletter", "subscribe", email);
     } catch (err: any) {
       setStatus("error");
       setMessage(err.message);

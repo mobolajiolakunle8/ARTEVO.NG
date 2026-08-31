@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Mail, Phone, MapPin, Send, CheckCircle2, MessageCircle } from "lucide-react";
 import { BRAND, whatsappHref } from "@/lib/brand";
+import { firebaseSyncPush } from "@/lib/firebase-sync";
 
 export default function ContactClient() {
   const [type, setType] = useState("Residential Curation");
@@ -43,6 +44,7 @@ export default function ContactClient() {
       }
 
       setSuccess(true);
+      firebaseSyncPush("inquiries", "create", email);
     } catch (err: any) {
       setErrorMsg(err.message);
     } finally {

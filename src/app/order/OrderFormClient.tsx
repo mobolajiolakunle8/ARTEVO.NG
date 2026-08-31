@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { firebaseSyncPush } from "@/lib/firebase-sync";
 import Link from "next/link";
 import { ShoppingBag, ArrowRight, ShieldCheck, Lock, CheckCircle2 } from "lucide-react";
 
@@ -78,6 +79,7 @@ export default function OrderFormClient({
         throw new Error(data.error || "Failed to create order");
       }
 
+      firebaseSyncPush("orders", "create", data.order.orderRef);
       // Redirect to payment instructions page with generated orderRef
       router.push(`/order/payment?orderRef=${data.order.orderRef}`);
     } catch (err: any) {

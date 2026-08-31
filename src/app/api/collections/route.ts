@@ -1,4 +1,5 @@
 import { db, isDatabaseConfigured } from "@/db";
+import { adminUnauthorized, verifyAdminRequest } from "@/lib/admin-auth";
 import { publishLive } from "@/lib/sync";
 import { collections, artworks } from "@/db/schema";
 import { ensureDatabaseSeeded } from "@/db/init";
@@ -41,6 +42,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const admin = await verifyAdminRequest(request);
+  if (!admin.ok) return adminUnauthorized(admin.reason);
+
   await ensureDatabaseSeeded();
   try {
     const body = await request.json();

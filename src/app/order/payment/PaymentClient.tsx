@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { firebaseSyncPush } from "@/lib/firebase-sync";
 import {
   Building,
   CreditCard,
@@ -62,6 +63,7 @@ export default function PaymentClient({ order, bankSettings }: PaymentClientProp
 
       setCurrentOrder(data.order);
       setProofSuccess(true);
+      firebaseSyncPush("orders", "payment-submitted", order.orderRef);
     } catch (err: any) {
       setErrorMsg(err.message);
     } finally {

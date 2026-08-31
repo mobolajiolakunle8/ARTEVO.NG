@@ -1,4 +1,5 @@
 import { db, isDatabaseConfigured } from "@/db";
+import { adminUnauthorized, verifyAdminRequest } from "@/lib/admin-auth";
 import { publishLive } from "@/lib/sync";
 import { paymentSettings } from "@/db/schema";
 import { ensureDatabaseSeeded } from "@/db/init";
@@ -17,6 +18,9 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
+  const admin = await verifyAdminRequest(request);
+  if (!admin.ok) return adminUnauthorized(admin.reason);
+
   if (!isDatabaseConfigured()) {
     return NextResponse.json({ error: "Database is not connected yet. Add DATABASE_URL in Vercel environment variables." }, { status: 503 });
   }

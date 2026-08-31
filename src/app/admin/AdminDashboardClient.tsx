@@ -7,7 +7,6 @@ import ImageUploader from "@/components/ImageUploader";
 import DatabaseSetupGuide from "@/components/DatabaseSetupGuide";
 import { useLiveSync } from "@/components/useWishlist";
 import { useAuth } from "@/components/useAuth";
-import { Monitor, Wifi, WifiOff } from "lucide-react";
 import { BRAND } from "@/lib/brand";
 import { syncBroadcast } from "@/lib/sync";
 import { firebaseSyncPush } from "@/lib/firebase-sync";
@@ -108,7 +107,7 @@ export default function AdminDashboardClient({
   databaseReady = true,
 }: AdminDashboardClientProps) {
   const router = useRouter();
-  const { user, signOut, firebaseEnabled, liveSessions, presenceState } = useAuth();
+  const { user, signOut, firebaseEnabled } = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
   const [liveIndicator, setLiveIndicator] = useState(false);
 
@@ -189,7 +188,7 @@ export default function AdminDashboardClient({
   const handleSaveSiteContent = async () => {
     setSiteEditorSaving(true);
     try {
-      await fetch("/api/site-content", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(siteContentData) });
+      await secureFetch("/api/site-content", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(siteContentData) });
       syncBroadcast("artevo-site-content", { ts: Date.now() });
       setSiteEditorSuccess(true);
       showToast("Website content updated and published.");
@@ -202,6 +201,15 @@ export default function AdminDashboardClient({
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(""), 3500);
+  };
+
+  const secureFetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
+    const headers = new Headers(init.headers || {});
+    if (user) {
+      const token = await user.getIdToken();
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+    return fetch(input, { ...init, headers });
   };
 
   // ---------- Derived analytics ----------
@@ -258,7 +266,7 @@ export default function AdminDashboardClient({
   // ---------- Handlers ----------
   const handleVerifyOrderPayment = async (orderRef: string, newStatus: string) => {
     try {
-      const res = await fetch(`/api/orders/${orderRef}`, {
+      const res = await secureFetch(`/api/orders/${orderRef}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
@@ -324,7 +332,7 @@ export default function AdminDashboardClient({
     };
     try {
       if (editingArt) {
-        const res = await fetch(`/api/artworks/id/${editingArt.id}`, {
+        const res = await secureFetch(`/api/artworks/id/${editingArt.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -336,7 +344,7 @@ export default function AdminDashboardClient({
           firebaseSyncPush("artworks", "update", editingArt.id);
         }
       } else {
-        const res = await fetch("/api/artworks", {
+        const res = await secureFetch("/api/artworks", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -361,7 +369,7 @@ export default function AdminDashboardClient({
       return;
     }
     try {
-      const res = await fetch(`/api/artworks/id/${id}`, { method: "DELETE" });
+      const res = await secureFetch(`/api/artworks/id/${id}`, { method: "DELETE" });
       if (res.ok) {
         setArtworksList((prev) => prev.filter((a) => a.id !== id));
         setConfirmDeleteId(null);
@@ -376,7 +384,7 @@ export default function AdminDashboardClient({
   const handleSaveBankSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch("/api/payment-settings", {
+      const res = await secureFetch("/api/payment-settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ bankName, accountName, accountNumber, sortCodeOrSwift: sortCode, instructions, contactEmail: "mobolajiolakunle8@gmail.com" }),
@@ -397,7 +405,7 @@ export default function AdminDashboardClient({
   const handleSaveCollection = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch("/api/collections", {
+      const res = await secureFetch("/api/collections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -513,41 +521,6 @@ export default function AdminDashboardClient({
         </nav>
 
         <div className="p-4 border-t border-[#FAF7F2]/10 bg-[#0d0d0d] space-y-3">
-          {/* Realtime session status */}
-          {firebaseEnabled && user && (
-            <div className="rounded border border-[#B5965A]/30 bg-[#161616] p-2.5">
-              <div className="flex items-center justify-between text-[10px] uppercase tracking-widest text-[#B7AEA2]">
-                <span>Live sessions</span>
-                {presenceState === "online" ? (
-                  <span className="flex items-center gap-1 text-emerald-400">
-                    <Wifi className="w-3 h-3" /> Online
-                  </span>
-                ) : presenceState === "connecting" ? (
-                  <span className="text-amber-400">connecting…</span>
-                ) : (
-                  <span className="flex items-center gap-1 text-red-400">
-                    <WifiOff className="w-3 h-3" /> Offline
-                  </span>
-                )}
-              </div>
-              <div className="mt-1.5 space-y-1">
-                {liveSessions.length === 0 ? (
-                  <p className="text-[10px] text-[#B7AEA2]">No active sessions detected.</p>
-                ) : (
-                  liveSessions.slice(0, 5).map((s, i) => (
-                    <div key={`${s.email}-${s.lastSeen}-${i}`} className="flex items-center gap-1.5 text-[10px]">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                      <span className="truncate text-[#FAF7F2]">{s.email}</span>
-                      <span className="ml-auto flex items-center gap-0.5 text-[#B5965A] shrink-0">
-                        <Monitor className="w-3 h-3" /> {s.device.split("·")[0]?.trim() || "device"}
-                      </span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
-
           <div className="flex items-center gap-3">
             {user?.photoURL ? (
               <img src={user.photoURL} alt="" className="w-9 h-9 rounded-full object-cover ring-2 ring-[#B5965A]" />
